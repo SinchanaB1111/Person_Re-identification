@@ -1,0 +1,47 @@
+# AI Models
+*.pt
+*.onnx
+*.engine
+
+# Heavy Data Folders
+data/
+data*/
+eval/
+eval*/
+*dataset*/
+
+# Python Environment & Cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.ipynb_checkpoints/
+venv/
+.venv/
+env/
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# Operating System Files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+# Logs and databases
+*.log
+*.sqlite
+*.db
+# Ignore Large Safetensors Models
+*.safetensors
+
+# Ignore Large Safetensors Models
+*.safetensors

@@ -1,0 +1,37 @@
+PERSON SEARCH - HOW TO RUN ON WINDOWS
+=====================================
+
+You need: Windows 10 or 11, an internet connection for the first run, and about 4 GB of free disk space.
+You do NOT need to install Python or anything else yourself.
+
+
+STEP 1 - Extract the ZIP
+   Right-click the ZIP file > "Extract All..." > "Extract".
+   (Do not run anything from inside the ZIP without extracting it first.)
+
+STEP 2 - Double-click  START_HERE_Windows.bat
+   It is inside the "person_search" folder.
+
+   If a blue "Windows protected your PC" box appears:
+      click "More info", then "Run anyway".
+
+   If Windows asks "Do you want to allow this app to make changes to your device?":
+      click "Yes". (This installs the Microsoft Visual C++ runtime that PyTorch needs.)
+
+   The FIRST run installs everything automatically and takes 10-20 minutes.
+   Leave the black window open. When it is done, the app opens in your web browser.
+
+That's it.
+
+
+EVERY TIME AFTER THAT
+   Double-click START_HERE_Windows.bat again. The app opens in a few seconds.
+   Keep the black window open while you use the app. Close it to stop the app.
+
+
+IF SOMETHING GOES WRONG
+   - The window says a download failed: check your internet and double-click the file again.
+   - It says "packages do not load": restart the computer and double-click the file again.
+   - The browser did not open by itself: open http://localhost:8501 in your browser.
+   - College Wi-Fi blocks downloads: do the first run on another network (e.g. a phone hotspot).
+     After the first run, no internet is needed.

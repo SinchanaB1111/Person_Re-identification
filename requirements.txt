@@ -1,0 +1,17 @@
+# CPU-only install, works on Windows 10/11, macOS and Linux with Python 3.11-3.13.
+# (On Windows, the default PyPI torch wheel is the CPU build, so no CUDA download.)
+torch==2.14.1
+torchvision==0.29.1
+ultralytics==8.4.184
+lap==0.5.13
+open-clip-torch==3.3.0
+opencv-python==5.0.0.93
+imageio-ffmpeg==0.6.0
+numpy==2.4.6
+pandas==3.1.0
+scipy==1.17.1
+matplotlib==3.11.2
+pillow==13.0.0
+streamlit==1.66.1
+motmetrics==1.4.0
+onnxruntime==1.31.0

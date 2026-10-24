@@ -1,0 +1,23 @@
+[server]
+maxUploadSize = 2000
+
+[browser]
+gatherUsageStats = false
+
+[client]
+toolbarMode = "minimal"
+
+# Tokens follow the El-Rhema Studio design system (see ui.py for the full set).
+[theme]
+base = "light"
+primaryColor = "#ea2804"
+backgroundColor = "#fafaf9"
+secondaryBackgroundColor = "#efeee9"
+textColor = "#0c0c0c"
+linkColor = "#0c0c0c"
+borderColor = "#e4e3df"
+showWidgetBorder = true
+baseRadius = "none"
+font = "Geist:https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap, system-ui, sans-serif"
+codeFont = "Geist Mono:https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&display=swap, ui-monospace, monospace"
+headingFontWeights = 500
