@@ -1,0 +1,74 @@
+[
+ {
+  "file": "C2_t050s_person281.jpg",
+  "person_id": 281,
+  "camera": "C2",
+  "frame": "00000500"
+ },
+ {
+  "file": "C2_t050s_person168.jpg",
+  "person_id": 168,
+  "camera": "C2",
+  "frame": "00000500"
+ },
+ {
+  "file": "C2_t100s_person170.jpg",
+  "person_id": 170,
+  "camera": "C2",
+  "frame": "00001000"
+ },
+ {
+  "file": "C2_t100s_person56.jpg",
+  "person_id": 56,
+  "camera": "C2",
+  "frame": "00001000"
+ },
+ {
+  "file": "C2_t150s_person74.jpg",
+  "person_id": 74,
+  "camera": "C2",
+  "frame": "00001500"
+ },
+ {
+  "file": "C4_t100s_person378.jpg",
+  "person_id": 378,
+  "camera": "C4",
+  "frame": "00001000"
+ },
+ {
+  "file": "C4_t100s_person406.jpg",
+  "person_id": 406,
+  "camera": "C4",
+  "frame": "00001000"
+ },
+ {
+  "file": "C4_t150s_person16.jpg",
+  "person_id": 16,
+  "camera": "C4",
+  "frame": "00001500"
+ },
+ {
+  "file": "C7_t050s_person115.jpg",
+  "person_id": 115,
+  "camera": "C7",
+  "frame": "00000500"
+ },
+ {
+  "file": "C7_t050s_person134.jpg",
+  "person_id": 134,
+  "camera": "C7",
+  "frame": "00000500"
+ },
+ {
+  "file": "C7_t100s_person580.jpg",
+  "person_id": 580,
+  "camera": "C7",
+  "frame": "00001000"
+ },
+ {
+  "file": "C7_t150s_person198.jpg",
+  "person_id": 198,
+  "camera": "C7",
+  "frame": "00001500"
+ }
+]

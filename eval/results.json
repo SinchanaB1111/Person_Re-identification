@@ -1,0 +1,85 @@
+{
+  "generated_at": "2026-10-23 19:03",
+  "device": "cpu",
+  "dataset": "WILDTRACK multi-camera dataset (EPFL) + COCO128",
+  "sections": {
+    "Detection on WILDTRACK (IoU \u2265 0.5)": {
+      "Precision": "0.712",
+      "Recall": "0.674",
+      "F1": "0.692",
+      "GT boxes": "18,910"
+    },
+    "Tracking on WILDTRACK": {
+      "MOTA": "0.346",
+      "IDF1": "0.439",
+      "ID switches": 1048,
+      "Fragmentations": 1353,
+      "Mostly tracked": "245/809"
+    },
+    "Detection on COCO128 (person class, standard benchmark)": {
+      "Precision": "0.785",
+      "Recall": "0.720",
+      "mAP@0.5": "0.789",
+      "mAP@0.5:0.95": "0.537",
+      "Inference (ms/img)": "15.4",
+      "FPS (model only)": "65.1"
+    },
+    "Cross-camera Re-ID (track query vs other cameras)": {
+      "Queries": 136,
+      "Rank-1": "0.691",
+      "Rank-5": "0.846",
+      "mAP": "0.663"
+    },
+    "Image search (single photo vs other cameras)": {
+      "Queries": 136,
+      "Top-1": "0.301",
+      "Top-5": "0.507",
+      "Avg latency (ms)": "8.0"
+    },
+    "Photo search from cameras that were never indexed (C2, C4, C7)": {
+      "Queries": 5,
+      "Top-1": "0.400",
+      "Top-5": "0.800",
+      "Top-10": "0.800",
+      "Avg latency incl. detection (ms)": "42"
+    },
+    "Description search": {
+      "Queries": 14,
+      "Top-1": "0.357",
+      "Top-5": "0.500",
+      "Top-10": "0.571",
+      "Avg latency (ms)": "37"
+    },
+    "Global ID grouping": {
+      "Pairwise precision": "0.273",
+      "Pairwise recall": "0.241",
+      "Global IDs": 184,
+      "GT people": 147
+    },
+    "Similarity distribution": {
+      "Same-person mean": "0.741",
+      "Different-person mean": "0.579",
+      "Best separating threshold": "0.68",
+      "TPR at that threshold": "0.795",
+      "FPR at that threshold": "0.108"
+    },
+    "Speed (indexing, this machine)": {
+      "Videos": 3,
+      "Total video length (s)": "600",
+      "Total indexing time (s)": "428",
+      "Frames / second": "2.80",
+      "Stored person crops": "29,714",
+      "Tracks": 715
+    }
+  },
+  "figures": [
+    "similarity_hist.png"
+  ],
+  "notes": [
+    "WILDTRACK: 3 of the 7 synchronised cameras (C1, C3, C5), 400 frames each at 2 frames/second (200 s), 1280\u00d7720. Ground-truth person IDs are shared across cameras.",
+    "WILDTRACK only labels people inside a fixed ground area; detections whose feet fall outside that area are ignored rather than counted as false positives.",
+    "Tracking runs at 2 frames/second here (the dataset's annotation rate), which is much harder than normal 25\u201330 FPS video: people move far between frames, so expect more ID switches than on regular footage.",
+    "Re-ID uses OSNet-AIN trained on MSMT17 only; it never saw WILDTRACK, so these are cross-domain numbers.",
+    "Scores are appearance similarity and are evidence for a human reviewer, not proof of identity."
+  ]
+}
