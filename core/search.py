@@ -127,7 +127,8 @@ def track_means(index):
     pks = index["tracks"]["id"].to_numpy()
     pos = {pk: i for i, pk in enumerate(pks)}
     sums = np.zeros((len(pks), index["reid"].shape[1]), dtype=np.float32)
-    np.add.at(sums, s["track_pk"].map(pos).to_numpy(), index["reid"][s["id"].to_numpy()])
+    np.add.at(sums, s["track_pk"].map(pos).to_numpy(dtype=np.int64),
+              index["reid"][s["id"].to_numpy(dtype=np.int64)])
     sums /= np.linalg.norm(sums, axis=1, keepdims=True) + 1e-12
     index["track_means"] = (pks, sums)
     return pks, sums

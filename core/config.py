@@ -61,11 +61,15 @@ def to_abs(path) -> str:
 
 
 def get_device() -> str:
-    """CUDA if present, else CPU. MPS is skipped on purpose so timings match a normal laptop."""
+    """GPU if present (CUDA, else Apple MPS), else CPU. Override with the PS_DEVICE env var."""
     forced = os.environ.get("PS_DEVICE")
     if forced:
         return forced
-    return "cuda" if torch.cuda.is_available() else "cpu"
+    if torch.cuda.is_available():
+        return "cuda"
+    if torch.backends.mps.is_available():
+        return "mps"
+    return "cpu"
 
 
 for _d in (VIDEOS_DIR, INDEX_DIR, CROPS_DIR, ANNOTATED_DIR, CLIPS_DIR, EVAL_DIR):

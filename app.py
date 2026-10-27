@@ -4,6 +4,8 @@
 """
 import base64
 import json
+import shutil
+import threading
 import time
 from pathlib import Path
 
@@ -60,22 +62,11 @@ def bgr_data_uri(img):
     return "data:image/jpeg;base64," + base64.b64encode(buf.tobytes()).decode()
 
 
-SAMPLE_DIR = EVAL_DIR / "query_photos"
-
-
 def photo_input(key, label="Photo of the person"):
-    """Uploader plus a picker of bundled sample photos. Returns (image_bgr or None, name)."""
+    """Uploader for the query photo. Returns (image_bgr or None, name)."""
     up = st.file_uploader(label, type=["jpg", "jpeg", "png", "webp"], key=f"{key}_up")
-    samples = sorted(p.name for p in SAMPLE_DIR.glob("*.jpg"))
-    pick = st.selectbox("…or use a sample photo", ["(none)"] + samples, key=f"{key}_sample",
-                        help="Sample photos come from WILDTRACK cameras 2, 4 and 7, which were not indexed.")
     if up is not None:
         return read_upload_image(up), up.name
-    if pick != "(none)":
-        img = cv2.imread(str(SAMPLE_DIR / pick))
-        ui.html(f'<div class="ps-frame" style="aspect-ratio:16/9;margin-top:4px"><img src="{bgr_data_uri(img)}" alt="">'
-                f'<span class="tl">SAMPLE · {ui.e(pick[:2])}</span></div>')
-        return img, pick
     return None, None
 
 
@@ -446,109 +437,151 @@ def page_gallery():
             results_grid(near, f"near{gid}", cols=3, threshold=thr)
 
 
-def page_videos():
+class Cancelled(Exception):
+    pass
+
+
+@st.cache_resource
+def get_job():
+    """Shared state of the background indexing job (the UI polls it)."""
+    return {"thread": None, "cancel": threading.Event(), "status": "idle", "text": "", "frac": 0.0, "msg": ""}
+
+
+def _run_job(job, models, items, max_s):
     from index_videos import index_one, refresh_global_ids
+
+    def check():
+        if job["cancel"].is_set():
+            raise Cancelled()
+
+    try:
+        for i, (p, cam) in enumerate(items):
+            t0 = time.time()
+
+            def progress(done, total, i=i, name=p.name, t0=t0):
+                check()
+                job["frac"] = (i + min(done / max(total, 1), 1.0)) / len(items)
+                job["text"] = f"{name} ({i + 1}/{len(items)}): frame {done}/{total} · {time.time() - t0:.0f}s"
+
+            index_one(models, p, cam, max_s, progress)
+            check()
+        job["text"] = "Updating Global IDs ..."
+        refresh_global_ids()
+        job["status"], job["msg"] = "done", f"Processed {len(items)} video(s)."
+    except Cancelled:
+        job["status"], job["msg"] = "cancelled", "Processing terminated."
+    except Exception as ex:  # surfaced in the UI
+        job["status"], job["msg"] = "error", f"Processing failed: {ex}"
+
+
+def delete_indexed_video(name):
+    """Drop a video from the index and move its file into data/videos/deleted/."""
+    from index_videos import refresh_global_ids
+    con = store.connect()
+    store.delete_video(con, name)
+    con.close()
+    src = VIDEOS_DIR / name
+    if src.exists():
+        trash = VIDEOS_DIR / "deleted"
+        trash.mkdir(exist_ok=True)
+        dest = trash / name
+        if dest.exists():
+            dest = trash / f"{dest.stem}_{int(time.time())}{dest.suffix}"
+        shutil.move(str(src), str(dest))
+    refresh_global_ids()
+
+
+@st.fragment(run_every=1)
+def job_panel():
+    job = get_job()
+    running = job["thread"] is not None and job["thread"].is_alive()
+    if running:
+        st.progress(job["frac"], text=job["text"] or "Starting ...")
+        if st.button("Terminate processing", icon=":material/stop_circle:", key="terminate"):
+            job["cancel"].set()
+            job["text"] = "Terminating ..."
+    elif job["status"] in ("done", "cancelled", "error"):
+        {"done": st.success, "cancelled": st.warning, "error": st.error}[job["status"]](job["msg"])
+        job["status"] = "idle"
+        st.rerun()
+
+
+def page_videos():
     index = get_index()
     videos = index["videos"]
     c = index_counts(index)
+    job = get_job()
+    running = job["thread"] is not None and job["thread"].is_alive()
     ui.page_head(f"Index · {get_device()}", "Videos",
-                 "Indexing runs detection → tracking → feature extraction once per video and stores the results. "
-                 "This is the slow step; searches afterwards are fast.")
+                 "Upload surveillance footage and press Process. Detection → tracking → feature extraction runs "
+                 "once per video and the results are stored; searches afterwards are fast.")
 
-    if not videos.empty:
-        ui.stats([("Videos", c["videos"], ""), ("Person tracks", f"{c['tracks']:,}", ""),
-                  ("Identities", f"{c['ids']:,}", ""), ("Stored views", f"{c['crops']:,}", ""),
-                  ("Footage", f"{videos['duration_s'].sum() / 60:.1f}", "min")])
-        counts = index["tracks"].groupby("video_id").size()
-        table = pd.DataFrame({
-            "Camera": videos["camera"], "File": videos["name"],
-            "Length": videos["duration_s"].map(format_ts), "FPS": videos["fps"].map("{:.1f}".format),
-            "Resolution": videos["width"].astype(str) + "×" + videos["height"].astype(str),
-            "Person tracks": videos["id"].map(counts).fillna(0).astype(int),
-            "Indexing time (s)": videos["processing_s"].map("{:.0f}".format),
-            "Speed (frames/s)": (videos["frames"] / videos["processing_s"]).map("{:.1f}".format),
-            "Indexed at": videos["indexed_at"]})
-        head = "".join(f"<th>{ui.e(col)}</th>" for col in table.columns)
-        body = "".join("<tr>" + "".join(f"<td>{ui.e(v)}</td>" for v in row) + "</tr>"
-                       for row in table.itertuples(index=False))
-        ui.html(f'<div class="ps-panel" style="margin-top:16px">{ui.panel_head("Indexed videos")}'
-                f'<div style="overflow-x:auto"><table class="ps-table"><thead><tr>{head}</tr></thead>'
-                f'<tbody>{body}</tbody></table></div></div>')
-
-        watch, link = st.columns([1.6, 1], gap="medium")
-        with watch, st.container(key="panel_watch"):
-            ui.html('<span class="ps-eyebrow">Annotated video · boxes and track IDs</span>')
-            cams = videos.set_index("id")["camera"]
-            pick = st.segmented_control("Video", list(videos["id"]), format_func=cams.get,
-                                        default=videos["id"].iloc[0], required=True, key="watch_pick",
-                                        label_visibility="collapsed")
-            path = videos.set_index("id").loc[pick, "annotated_path"]
-            if Path(path).exists():
-                st.video(path)
-            else:
-                ui.html('<div class="ps-empty">Annotated video not found on disk.</div>')
-        with link, st.container(key="panel_link"):
-            ui.html('<span class="ps-eyebrow">Identity linking</span>'
-                    '<p style="margin:10px 0 0;font:400 14px/1.5 var(--sans);color:var(--text2)">Two tracks are '
-                    'linked into one Global ID when their average appearance similarity is at least this value. '
-                    'Higher means fewer wrong merges but more split identities.</p>')
-            g = st.slider("Global ID linking threshold", 0.3, 0.9, GLOBAL_ID_THRESHOLD, 0.01)
-            if st.button("Recompute Global IDs", icon=":material/refresh:", width="stretch"):
-                n = refresh_global_ids(g)
-                st.toast(f"{n} Global IDs assigned.", icon=":material/check_circle:")
-                st.rerun()
-
-    section_label("Add videos")
+    section_label("Upload videos", top=0)
     with st.container(key="panel_add"):
         up_col, opt_col = st.columns([1.6, 1], gap="large")
+        gen = st.session_state.setdefault("upload_gen", 0)
         with up_col:
-            ups = st.file_uploader("Surveillance videos", type=[x[1:] for x in VIDEO_EXTS], accept_multiple_files=True)
+            ups = st.file_uploader("Surveillance videos", type=[x[1:] for x in VIDEO_EXTS],
+                                   accept_multiple_files=True, key=f"vid_up_{gen}", disabled=running)
         with opt_col:
-            max_s = st.number_input("Only index the first N seconds (0 = whole video)", 0, 36000, 0, 30)
-        pending = []
-        for up in ups or []:
-            dest = VIDEOS_DIR / Path(up.name).name
-            if not dest.exists() or dest.stat().st_size != up.size:
+            max_s = st.number_input("Only process the first N seconds (0 = whole video)", 0, 36000, 0, 30,
+                                    disabled=running)
+        label = f"Process {len(ups)} video{'s' if len(ups) != 1 else ''}" if ups else "Process"
+        if st.button(label, type="primary", disabled=not ups or running, icon=":material/play_arrow:"):
+            items = []
+            for up in ups:
+                dest = VIDEOS_DIR / Path(up.name).name
                 dest.write_bytes(up.getvalue())
-            pending.append(dest)
-        on_disk = sorted(p for p in VIDEOS_DIR.iterdir() if p.suffix.lower() in VIDEO_EXTS)
-        not_indexed = [p for p in on_disk if p.name not in set(videos["name"])]
-        cams = {}
-        queue = sorted(set(pending) | set(not_indexed))
-        if queue:
-            ui.html('<span class="ps-eyebrow">Waiting to be indexed · name each camera</span>')
-            for p in queue:
-                cams[p] = st.text_input(f"Camera name for {p.name}", value=p.stem, key=f"cam_{p.name}")
-        else:
-            ui.html('<p style="margin:0;font:400 13.5px/1.5 var(--sans);color:var(--muted)">Every video on disk is '
-                    'indexed. Upload more above to add them.</p>')
-        label = f"Index {len(cams)} video{'s' if len(cams) != 1 else ''}" if cams else "Index videos"
-        if st.button(label, type="primary", disabled=not cams, icon=":material/play_arrow:"):
+                items.append((dest, dest.stem))
             models = get_models()
-            for p, cam in cams.items():
-                bar = st.progress(0.0, text=f"{p.name}: starting")
-                t0 = time.time()
-
-                def progress(done, total, bar=bar, name=p.name, t0=t0):
-                    frac = min(done / max(total, 1), 1.0)
-                    bar.progress(frac, text=f"{name}: frame {done}/{total} · {time.time() - t0:.0f}s")
-
-                meta, tracks = index_one(models, p, cam, max_s, progress)
-                st.toast(f"{p.name}: {len(tracks)} person tracks indexed in {meta['processing_s']}s",
-                         icon=":material/check_circle:")
-            n = refresh_global_ids()
-            st.toast(f"Global IDs updated ({n} identities).", icon=":material/check_circle:")
+            job.update(cancel=threading.Event(), status="running", text="Starting ...", frac=0.0, msg="")
+            job["thread"] = threading.Thread(target=_run_job, args=(job, models, items, max_s), daemon=True)
+            job["thread"].start()
+            st.session_state["upload_gen"] = gen + 1
             st.rerun()
+        job_panel()
 
-    if not videos.empty:
-        with st.expander("Remove a video from the index", icon=":material/delete:"):
-            rm = st.selectbox("Video", videos["name"], key="rm_sel")
-            if st.button("Remove from index", icon=":material/delete:"):
-                con = store.connect()
-                store.delete_video(con, rm)
-                con.close()
-                refresh_global_ids()
+    if videos.empty:
+        return
+    ui.stats([("Videos", c["videos"], ""), ("Person tracks", f"{c['tracks']:,}", ""),
+              ("Identities", f"{c['ids']:,}", ""), ("Stored views", f"{c['crops']:,}", ""),
+              ("Footage", f"{videos['duration_s'].sum() / 60:.1f}", "min")])
+    section_label("Indexed videos")
+    counts = index["tracks"].groupby("video_id").size()
+    with st.container(key="panel_indexed"):
+        for v in videos.itertuples(index=False):
+            info, btn = st.columns([8, 1], vertical_alignment="center")
+            info.markdown(f"**{v.camera}** · {v.name}  \n"
+                          f"{format_ts(v.duration_s)} · {int(v.width)}×{int(v.height)} · "
+                          f"{int(counts.get(v.id, 0))} person tracks · indexed {v.indexed_at}")
+            if btn.button("", icon=":material/delete:", key=f"del_{v.id}", help=f"Delete {v.name}",
+                          disabled=running):
+                delete_indexed_video(v.name)
                 st.rerun()
+
+    watch, link = st.columns([1.6, 1], gap="medium")
+    with watch, st.container(key="panel_watch"):
+        ui.html('<span class="ps-eyebrow">Annotated video · boxes and track IDs</span>')
+        cams = videos.set_index("id")["camera"]
+        pick = st.segmented_control("Video", list(videos["id"]), format_func=cams.get,
+                                    default=videos["id"].iloc[0], required=True, key="watch_pick",
+                                    label_visibility="collapsed")
+        path = videos.set_index("id").loc[pick, "annotated_path"]
+        if Path(path).exists():
+            st.video(path)
+        else:
+            ui.html('<div class="ps-empty">Annotated video not found on disk.</div>')
+    with link, st.container(key="panel_link"):
+        from index_videos import refresh_global_ids
+        ui.html('<span class="ps-eyebrow">Identity linking</span>'
+                '<p style="margin:10px 0 0;font:400 14px/1.5 var(--sans);color:var(--text2)">Two tracks are '
+                'linked into one Global ID when their average appearance similarity is at least this value. '
+                'Higher means fewer wrong merges but more split identities.</p>')
+        g = st.slider("Global ID linking threshold", 0.3, 0.9, GLOBAL_ID_THRESHOLD, 0.01)
+        if st.button("Recompute Global IDs", icon=":material/refresh:", width="stretch"):
+            n = refresh_global_ids(g)
+            st.toast(f"{n} Global IDs assigned.", icon=":material/check_circle:")
+            st.rerun()
 
 
 def page_eval():

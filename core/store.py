@@ -104,7 +104,7 @@ def delete_video(con, name):
         return
     vid = row[0]
     reid, clip = _load_matrix(REID_EMB_PATH), _load_matrix(CLIP_EMB_PATH)
-    keep = pd.read_sql("SELECT id FROM samples WHERE video_id != ? ORDER BY id", con, params=(vid,))["id"].to_numpy()
+    keep = pd.read_sql("SELECT id FROM samples WHERE video_id != ? ORDER BY id", con, params=(vid,))["id"].to_numpy(dtype=np.int64)
     con.execute("DELETE FROM samples WHERE video_id=?", (vid,))
     con.execute("DELETE FROM tracks WHERE video_id=?", (vid,))
     con.execute("DELETE FROM boxes WHERE video_id=?", (vid,))

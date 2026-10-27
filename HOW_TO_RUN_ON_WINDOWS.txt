@@ -21,6 +21,10 @@ STEP 2 - Double-click  START_HERE_Windows.bat
    The FIRST run installs everything automatically and takes 10-20 minutes.
    Leave the black window open. When it is done, the app opens in your web browser.
 
+   If the computer has an NVIDIA graphics card (with up-to-date drivers), the installer also
+   downloads the GPU version of PyTorch (about 2-3 GB extra) and indexing runs on the GPU.
+   The black window prints "Processing device: GPU - <card name>" or "CPU" at the end of setup.
+
 That's it.
 
 

@@ -64,7 +64,7 @@ echo [3/4] Creating the Python environment ...
 if not exist "%VPY%" "%PY%" -m venv "%VENV%"
 if not exist "%VPY%" goto :fail_venv
 
-echo [4/4] Installing packages (about 1 GB, the longest step) ...
+echo [4/4] Installing packages (about 1 GB, plus 2-3 GB more if an NVIDIA GPU is found) ...
 "%VPY%" -m pip install --upgrade pip --timeout 120 --retries 5
 "%VPY%" -m pip install -r requirements.txt --timeout 120 --retries 5
 if not errorlevel 1 goto :pip_ok
@@ -73,9 +73,19 @@ echo       Some downloads failed. Trying once more ...
 if errorlevel 1 goto :fail_pip
 :pip_ok
 
+rem If an NVIDIA GPU is present, swap the CPU build of PyTorch for the CUDA build (about 2-3 GB).
+rem Failure here is not fatal: the app simply keeps running on the CPU.
+nvidia-smi -L >nul 2>&1
+if errorlevel 1 goto :no_gpu
+echo       NVIDIA GPU found. Installing the GPU build of PyTorch (about 2-3 GB) ...
+"%VPY%" -m pip install --force-reinstall --no-deps --index-url https://download.pytorch.org/whl/cu128 torch==2.14.1 torchvision==0.29.1 --timeout 120 --retries 5
+if errorlevel 1 echo       GPU build could not be installed. The app will run on the CPU instead.
+:no_gpu
+
 echo       Checking that everything loads ...
 "%VPY%" -c "import torch, cv2, onnxruntime, open_clip, ultralytics, streamlit, motmetrics"
 if errorlevel 1 goto :fail_import
+"%VPY%" -c "import torch; print('      Processing device:', 'GPU - ' + torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU')"
 copy /y "requirements.txt" "%STAMP%" >nul
 echo.
 echo  Setup complete.

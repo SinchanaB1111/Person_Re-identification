@@ -1,5 +1,6 @@
-# CPU-only install, works on Windows 10/11, macOS and Linux with Python 3.11-3.13.
-# (On Windows, the default PyPI torch wheel is the CPU build, so no CUDA download.)
+# Works on Windows 10/11, macOS and Linux with Python 3.11-3.13.
+# The default PyPI torch wheel on Windows is the CPU build; START_HERE_Windows.bat swaps it for the
+# CUDA build when an NVIDIA GPU is detected. On Linux with an NVIDIA GPU, PyPI torch already has CUDA.
 torch==2.14.1
 torchvision==0.29.1
 ultralytics==8.4.184
