@@ -70,6 +70,15 @@ def photo_input(key, label="Photo of the person"):
     return None, None
 
 
+def best_per_camera(df, thr):
+    """Highest-scoring track at or above the match threshold in each video (its first-seen time is shown)."""
+    if df is None or df.empty:
+        return df
+    df = df[df["score"] >= thr].sort_values("score", ascending=False).drop_duplicates("video_id").copy()
+    df["rank"] = np.arange(1, len(df) + 1)
+    return df
+
+
 def short_ts(seconds):
     """00:01:02.30 -> 01:02.3 for videos under an hour."""
     t = format_ts(seconds)
@@ -87,7 +96,7 @@ def index_counts(index):
 
 def clip_for(row):
     """Render (once) a short clip of this track with the person boxed in red."""
-    out = CLIPS_DIR / f"v{int(row['video_id'])}_t{int(row['track_id'])}.mp4"
+    out = CLIPS_DIR / f"v{int(row['video_id'])}_{Path(row['video']).stem}_t{int(row['track_id'])}.mp4"
     if not out.exists():
         fps = float(row["fps"])
         pad = int(round(2 * fps))
@@ -260,7 +269,8 @@ def page_search():
             if st.button("Search all videos", type="primary", key="img_go", disabled=img is None,
                          icon=":material/search:", width="stretch"):
                 with st.spinner("Searching ..."):
-                    df, crop, secs = search_image(index, get_models(), img, top_k)
+                    df, crop, secs = search_image(index, get_models(), img, c["tracks"])
+                    df = best_per_camera(df, thr)
                 st.session_state["img_res"] = (df, crop, secs, name)
         elif mode == "text":
             ui.html('<span class="ps-eyebrow">Query · description</span>')
@@ -329,7 +339,8 @@ def page_search():
                 if mode == "photo":
                     results_downloads(df, "photo_search", {"type": "photo", "file": result[3]})
 
-    section_label("Ranked by score · best view per track")
+    section_label("First appearance in each camera · highest-scoring track above the match threshold" if mode == "photo"
+                  else "Ranked by score · best view per track")
     if mode == "photo":
         results_grid(df, "img", threshold=thr)
     elif mode == "text":
@@ -427,9 +438,9 @@ def page_gallery():
             st.download_button("Re-identification results (JSON)", json.dumps(payload, indent=2),
                                f"global_id_{gid}_reid.json", "application/json", icon=":material/download:")
 
-        matches = cand[cand["match"]].sort_values(["video_id", "first_ts"]).copy()
+        matches = cand[cand["match"]].sort_values("score", ascending=False).drop_duplicates("video_id").copy()
         matches["rank"] = np.arange(1, len(matches) + 1)
-        section_label(f"All appearances · {len(matches)} tracks", top=12)
+        section_label(f"First appearance in each camera · highest-scoring track · {len(matches)} of {len(videos)} cameras", top=12)
         results_grid(matches, f"gal{gid}", cols=3, threshold=thr)
         with st.expander("Closest non-matching candidates (for review)", icon=":material/rule:"):
             near = cand[~cand["match"]].head(9).copy()
@@ -478,8 +489,12 @@ def delete_indexed_video(name):
     """Drop a video from the index and move its file into data/videos/deleted/."""
     from index_videos import refresh_global_ids
     con = store.connect()
+    row = con.execute("SELECT id FROM videos WHERE name=?", (name,)).fetchone()
     store.delete_video(con, name)
     con.close()
+    if row:  # video ids can be reused later, so drop this video's cached clips
+        for clip in CLIPS_DIR.glob(f"v{row[0]}_*.mp4"):
+            clip.unlink()
     src = VIDEOS_DIR / name
     if src.exists():
         trash = VIDEOS_DIR / "deleted"
